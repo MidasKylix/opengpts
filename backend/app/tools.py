@@ -17,7 +17,7 @@ from langchain_community.tools.tavily_search import TavilyAnswer, TavilySearchRe
 from langchain_community.utilities.arxiv import ArxivAPIWrapper
 from langchain_community.utilities.tavily_search import TavilySearchAPIWrapper
 from langchain_community.vectorstores.redis import RedisFilter
-from langchain_robocorp import ActionServerToolkit
+# from langchain_robocorp import ActionServerToolkit
 
 from app.upload import vstore
 
@@ -121,14 +121,14 @@ def _get_tavily_answer():
     return TavilyAnswer(api_wrapper=tavily_search)
 
 
-@lru_cache(maxsize=1)
-def _get_action_server():
-    toolkit = ActionServerToolkit(
-        url=os.environ.get("ROBOCORP_ACTION_SERVER_URL"),
-        api_key=os.environ.get("ROBOCORP_ACTION_SERVER_KEY"),
-    )
-    tools = toolkit.get_tools()
-    return tools
+# @lru_cache(maxsize=1)
+# def _get_action_server():
+#     toolkit = ActionServerToolkit(
+#         url=os.environ.get("ROBOCORP_ACTION_SERVER_URL"),
+#         api_key=os.environ.get("ROBOCORP_ACTION_SERVER_KEY"),
+#     )
+#     tools = toolkit.get_tools()
+#     return tools
 
 
 @lru_cache(maxsize=1)
@@ -143,7 +143,7 @@ def _get_connery_actions():
 
 
 class AvailableTools(str, Enum):
-    ACTION_SERVER = "Action Server by Robocorp"
+    # ACTION_SERVER = "Action Server by Robocorp"
     CONNERY = '"AI Action Runner" by Connery'
     DDG_SEARCH = "DDG Search"
     TAVILY = "Search (Tavily)"
@@ -158,7 +158,7 @@ class AvailableTools(str, Enum):
 
 
 TOOLS = {
-    AvailableTools.ACTION_SERVER: _get_action_server,
+    # AvailableTools.ACTION_SERVER: _get_action_server,
     AvailableTools.CONNERY: _get_connery_actions,
     AvailableTools.DDG_SEARCH: _get_duck_duck_go,
     AvailableTools.ARXIV: _get_arxiv,
