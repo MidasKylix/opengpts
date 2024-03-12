@@ -43,16 +43,16 @@ function configsReducer(
   return orderBy(action, "updated_at", "desc");
 }
 
-const { fetch: originalFetch } = window;
+// const { fetch: originalFetch } = window;
 
-window.fetch = async (...args) => {
-  const [resource, config] = args;
-  const url = "/api/v1" + resource;
-  // request interceptor here
-  const response = await originalFetch(url, config);
-  // response interceptor here
-  return response;
-};
+// window.fetch = async (...args) => {
+//   const [resource, config] = args;
+//   const url = "/api/v1" + resource;
+//   // request interceptor here
+//   const response = await originalFetch(url, config);
+//   // response interceptor here
+//   return response;
+// };
 
 export function useConfigList(): ConfigListProps {
   const [configs, setConfigs] = useReducer(configsReducer, null);
