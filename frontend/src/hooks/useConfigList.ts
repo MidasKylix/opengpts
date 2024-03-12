@@ -23,14 +23,14 @@ export interface ConfigListProps {
     key: string,
     config: Config["config"],
     files: File[],
-    isPublic: boolean
+    isPublic: boolean,
   ) => Promise<void>;
   enterConfig: (id: string | null) => void;
 }
 
 function configsReducer(
   state: Config[] | null,
-  action: Config | Config[]
+  action: Config | Config[],
 ): Config[] | null {
   state = state ?? [];
   if (!Array.isArray(action)) {
@@ -76,7 +76,7 @@ export function useConfigList(): ConfigListProps {
             headers: {
               Accept: "application/json",
             },
-          }
+          },
         ).then((r) => r.json()),
       ]);
       setConfigs(myConfigs.concat(publicConfigs));
@@ -99,7 +99,7 @@ export function useConfigList(): ConfigListProps {
       config: Config["config"],
       files: File[],
       isPublic: boolean,
-      assistant_id: string = uuidv4()
+      assistant_id: string = uuidv4(),
     ) => {
       const formData = files.reduce((formData, file) => {
         formData.append("files", file);
@@ -107,7 +107,7 @@ export function useConfigList(): ConfigListProps {
       }, new FormData());
       formData.append(
         "config",
-        JSON.stringify({ configurable: { assistant_id } })
+        JSON.stringify({ configurable: { assistant_id } }),
       );
       const [saved] = await Promise.all([
         fetch(`/assistants/${assistant_id}`, {
@@ -128,7 +128,7 @@ export function useConfigList(): ConfigListProps {
       setConfigs({ ...saved, mine: true });
       enterConfig(saved.assistant_id);
     },
-    [enterConfig]
+    [enterConfig],
   );
 
   return {
