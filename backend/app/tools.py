@@ -67,23 +67,23 @@ class BaseTool(BaseModel):
     multi_use: Optional[bool] = False
 
 
-class ActionServerConfig(ToolConfig):
-    url: str
-    api_key: str
+# class ActionServerConfig(ToolConfig):
+#     url: str
+#     api_key: str
 
 
-class ActionServer(BaseTool):
-    type: AvailableTools = Field(AvailableTools.ACTION_SERVER, const=True)
-    name: str = Field("Action Server by Robocorp", const=True)
-    description: str = Field(
-        (
-            "Run AI actions with "
-            "[Robocorp Action Server](https://github.com/robocorp/robocorp)."
-        ),
-        const=True,
-    )
-    config: ActionServerConfig
-    multi_use: bool = Field(True, const=True)
+# class ActionServer(BaseTool):
+#     type: AvailableTools = Field(AvailableTools.ACTION_SERVER, const=True)
+#     name: str = Field("Action Server by Robocorp", const=True)
+#     description: str = Field(
+#         (
+#             "Run AI actions with "
+#             "[Robocorp Action Server](https://github.com/robocorp/robocorp)."
+#         ),
+#         const=True,
+#     )
+#     config: ActionServerConfig
+#     multi_use: bool = Field(True, const=True)
 
 
 class Connery(BaseTool):

@@ -23,7 +23,7 @@ from app.retrieval import get_retrieval_executor
 from app.tools import (
     RETRIEVAL_DESCRIPTION,
     TOOLS,
-    ActionServer,
+    # ActionServer,
     Arxiv,
     AvailableTools,
     Connery,
@@ -41,7 +41,7 @@ from app.tools import (
 )
 
 Tool = Union[
-    ActionServer,
+    # ActionServer,
     Connery,
     DDGSearch,
     Arxiv,
