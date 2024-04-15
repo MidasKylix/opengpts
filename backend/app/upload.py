@@ -6,21 +6,22 @@ The details here might change in the future.
 
 For the time being, upload and ingestion are coupled
 """
+
 from __future__ import annotations
 
 import os
 from typing import Any, BinaryIO, List, Optional
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter, TextSplitter
-from langchain_community.document_loaders.blob_loaders import Blob
-from langchain_community.vectorstores.redis import Redis
+from langchain_community.document_loaders.blob_loaders.schema import Blob
+from langchain_community.vectorstores.pgvector import PGVector
 from langchain_core.runnables import (
     ConfigurableField,
     RunnableConfig,
     RunnableSerializable,
 )
 from langchain_core.vectorstores import VectorStore
-from langchain_openai import OpenAIEmbeddings
+from langchain_openai import AzureOpenAIEmbeddings, OpenAIEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter, TextSplitter
 
 from app.ingest import ingest_blob
 from app.parsing import MIMETYPE_BASED_PARSER
@@ -52,6 +53,30 @@ def _convert_ingestion_input_to_blob(data: BinaryIO) -> Blob:
     )
 
 
+def _determine_azure_or_openai_embeddings() -> PGVector:
+    if os.environ.get("OPENAI_API_KEY"):
+        return PGVector(
+            connection_string=PG_CONNECTION_STRING,
+            embedding_function=OpenAIEmbeddings(),
+            use_jsonb=True,
+        )
+    if os.environ.get("AZURE_OPENAI_API_KEY"):
+        return PGVector(
+            connection_string=PG_CONNECTION_STRING,
+            embedding_function=AzureOpenAIEmbeddings(
+                azure_endpoint=os.environ.get("AZURE_OPENAI_API_BASE"),
+                azure_deployment=os.environ.get(
+                    "AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT_NAME"
+                ),
+                openai_api_version=os.environ.get("AZURE_OPENAI_API_VERSION"),
+            ),
+            use_jsonb=True,
+        )
+    raise ValueError(
+        "Either OPENAI_API_KEY or AZURE_OPENAI_API_KEY needs to be set for embeddings to work."
+    )
+
+
 class IngestRunnable(RunnableSerializable[BinaryIO, List[str]]):
     """Runnable for ingesting files into a vectorstore."""
 
@@ -60,9 +85,10 @@ class IngestRunnable(RunnableSerializable[BinaryIO, List[str]]):
     vectorstore: VectorStore
     """Vectorstore to ingest into."""
     assistant_id: Optional[str]
-    """Ingested documents will be associated with this assistant id.
+    thread_id: Optional[str]
+    """Ingested documents will be associated with assistant_id or thread_id.
     
-    The assistant ID is used as the namespace, and is filtered on at query time.
+    ID is used as the namespace, and is filtered on at query time.
     """
 
     class Config:
@@ -70,9 +96,13 @@ class IngestRunnable(RunnableSerializable[BinaryIO, List[str]]):
 
     @property
     def namespace(self) -> str:
-        if self.assistant_id is None:
-            raise ValueError("assistant_id must be provided")
-        return self.assistant_id
+        if (self.assistant_id is None and self.thread_id is None) or (
+            self.assistant_id is not None and self.thread_id is not None
+        ):
+            raise ValueError(
+                "Exactly one of assistant_id or thread_id must be provided"
+            )
+        return self.assistant_id if self.assistant_id is not None else self.thread_id
 
     def invoke(
         self, input: BinaryIO, config: Optional[RunnableConfig] = None
@@ -103,15 +133,15 @@ class IngestRunnable(RunnableSerializable[BinaryIO, List[str]]):
         return ids
 
 
-index_schema = {
-    "tag": [{"name": "namespace"}],
-}
-vstore = Redis(
-    redis_url=os.environ["REDIS_URL"],
-    index_name="opengpts",
-    embedding=OpenAIEmbeddings(),
-    index_schema=index_schema,
+PG_CONNECTION_STRING = PGVector.connection_string_from_db_params(
+    driver="psycopg2",
+    host=os.environ["POSTGRES_HOST"],
+    port=int(os.environ["POSTGRES_PORT"]),
+    database=os.environ["POSTGRES_DB"],
+    user=os.environ["POSTGRES_USER"],
+    password=os.environ["POSTGRES_PASSWORD"],
 )
+vstore = _determine_azure_or_openai_embeddings()
 
 
 ingest_runnable = IngestRunnable(
@@ -122,5 +152,10 @@ ingest_runnable = IngestRunnable(
         id="assistant_id",
         annotation=str,
         name="Assistant ID",
+    ),
+    thread_id=ConfigurableField(
+        id="thread_id",
+        annotation=str,
+        name="Thread ID",
     ),
 )

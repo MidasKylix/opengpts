@@ -1,33 +1,39 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Message } from "./useChatList";
-import { StreamState } from "./useStreamState";
+import { StreamState, mergeMessagesById } from "./useStreamState";
 
-async function getMessages(threadId: string) {
-  const { messages, resumeable } = await fetch(
-    `/threads/${threadId}/messages`,
-    {
-      headers: {
-        Accept: "application/json",
-      },
-    }
-  ).then((r) => r.json());
-  return { messages, resumeable };
+async function getState(threadId: string) {
+  const { values, next } = await fetch(`/threads/${threadId}/state`, {
+    headers: {
+      Accept: "application/json",
+    },
+  }).then((r) => r.json());
+  return { values, next };
+}
+
+function usePrevious<T>(value: T): T | undefined {
+  const ref = useRef<T>();
+  useEffect(() => {
+    ref.current = value;
+  });
+  return ref.current;
 }
 
 export function useChatMessages(
   threadId: string | null,
   stream: StreamState | null,
-  stopStream?: (clear?: boolean) => void
-): { messages: Message[] | null; resumeable: boolean } {
+  stopStream?: (clear?: boolean) => void,
+): { messages: Message[] | null; next: string[] } {
   const [messages, setMessages] = useState<Message[] | null>(null);
-  const [resumeable, setResumeable] = useState(false);
+  const [next, setNext] = useState<string[]>([]);
+  const prevStreamStatus = usePrevious(stream?.status);
 
   useEffect(() => {
     async function fetchMessages() {
       if (threadId) {
-        const { messages, resumeable } = await getMessages(threadId);
-        setMessages(messages);
-        setResumeable(resumeable);
+        const { values, next } = await getState(threadId);
+        setMessages(values);
+        setNext(next);
       }
     }
 
@@ -41,15 +47,15 @@ export function useChatMessages(
   useEffect(() => {
     async function fetchMessages() {
       if (threadId) {
-        const { messages, resumeable } = await getMessages(threadId);
-        setMessages(messages);
-        setResumeable(resumeable);
+        const { values, next } = await getState(threadId);
+        setMessages(values);
+        setNext(next);
         stopStream?.(true);
       }
     }
 
-    if (stream?.status !== "inflight") {
-      setResumeable(false);
+    if (prevStreamStatus === "inflight" && stream?.status !== "inflight") {
+      setNext([]);
       fetchMessages();
     }
 
@@ -58,11 +64,9 @@ export function useChatMessages(
 
   return useMemo(
     () => ({
-      messages: stream?.merge
-        ? [...(messages ?? []), ...(stream.messages ?? [])]
-        : stream?.messages ?? messages,
-      resumeable,
+      messages: mergeMessagesById(messages, stream?.messages),
+      next,
     }),
-    [messages, stream?.merge, stream?.messages, resumeable]
+    [messages, stream?.messages, next],
   );
 }

@@ -1,33 +1,57 @@
+import logging
 import os
 from functools import lru_cache
-import httpx
+from urllib.parse import urlparse
+
 import boto3
+import httpx
 from langchain_community.chat_models import BedrockChat, ChatAnthropic, ChatFireworks
+from langchain_community.chat_models.ollama import ChatOllama
 from langchain_google_vertexai import ChatVertexAI
 from langchain_openai import AzureChatOpenAI, ChatOpenAI
+
+logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=4)
 def get_openai_llm(gpt_4: bool = False, azure: bool = False):
-    proxy_url = os.environ["PROXY_URL"]
-    if proxy_url is not None or proxy_url != "":
-        http_client = httpx.AsyncClient(proxies=proxy_url)
-    else:
-        http_client = None
-    if not azure:
-        if gpt_4:
-            llm = ChatOpenAI(http_client=http_client, model="gpt-4-1106-preview", temperature=0, streaming=True)
+    proxy_url = os.getenv("PROXY_URL")
+    http_client = None
+    if proxy_url:
+        parsed_url = urlparse(proxy_url)
+        if parsed_url.scheme and parsed_url.netloc:
+            http_client = httpx.AsyncClient(proxies=proxy_url)
         else:
-            llm = ChatOpenAI(http_client=http_client, model="gpt-3.5-turbo-1106", temperature=0, streaming=True)
+            logger.warn("Invalid proxy URL provided. Proceeding without proxy.")
+
+    if not azure:
+        try:
+            openai_model = "gpt-4-turbo-preview" if gpt_4 else "gpt-3.5-turbo"
+            llm = ChatOpenAI(
+                http_client=http_client,
+                model=openai_model,
+                temperature=0,
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to instantiate ChatOpenAI due to: {str(e)}. Falling back to AzureChatOpenAI."
+            )
+            llm = AzureChatOpenAI(
+                http_client=http_client,
+                temperature=0,
+                deployment_name=os.environ["AZURE_OPENAI_DEPLOYMENT_NAME"],
+                azure_endpoint=os.environ["AZURE_OPENAI_API_BASE"],
+                openai_api_version=os.environ["AZURE_OPENAI_API_VERSION"],
+                openai_api_key=os.environ["AZURE_OPENAI_API_KEY"],
+            )
     else:
         llm = AzureChatOpenAI(
             http_client=http_client,
             temperature=0,
             deployment_name=os.environ["AZURE_OPENAI_DEPLOYMENT_NAME"],
-            openai_api_base=os.environ["AZURE_OPENAI_API_BASE"],
+            azure_endpoint=os.environ["AZURE_OPENAI_API_BASE"],
             openai_api_version=os.environ["AZURE_OPENAI_API_VERSION"],
             openai_api_key=os.environ["AZURE_OPENAI_API_KEY"],
-            streaming=True,
         )
     return llm
 
@@ -57,3 +81,15 @@ def get_google_llm():
 @lru_cache(maxsize=1)
 def get_mixtral_fireworks():
     return ChatFireworks(model="accounts/fireworks/models/mixtral-8x7b-instruct")
+
+
+@lru_cache(maxsize=1)
+def get_ollama_llm():
+    model_name = os.environ.get("OLLAMA_MODEL")
+    if not model_name:
+        model_name = "llama2"
+    ollama_base_url = os.environ.get("OLLAMA_BASE_URL")
+    if not ollama_base_url:
+        ollama_base_url = "http://localhost:11434"
+
+    return ChatOllama(model=model_name, base_url=ollama_base_url)

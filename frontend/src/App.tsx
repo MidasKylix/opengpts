@@ -1,54 +1,73 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { Chat } from "./components/Chat";
 import { ChatList } from "./components/ChatList";
 import { Layout } from "./components/Layout";
 import { NewChat } from "./components/NewChat";
-import { Chat as ChatType, useChatList } from "./hooks/useChatList";
+import { useChatList } from "./hooks/useChatList";
 import { useSchemas } from "./hooks/useSchemas";
 import { useStreamState } from "./hooks/useStreamState";
-import { useConfigList } from "./hooks/useConfigList";
+import {
+  useConfigList,
+  Config as ConfigInterface,
+} from "./hooks/useConfigList";
 import { Config } from "./components/Config";
+import { MessageWithFiles } from "./utils/formTypes.ts";
+import { useNavigate } from "react-router-dom";
+import { useThreadAndAssistant } from "./hooks/useThreadAndAssistant.ts";
 
-function App() {
+function App(props: { edit?: boolean }) {
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { configSchema, configDefaults } = useSchemas();
-  const { chats, currentChat, createChat, enterChat } = useChatList();
-  const { configs, currentConfig, saveConfig, enterConfig } = useConfigList();
+  const { chats, createChat, deleteChat } = useChatList();
+  const { configs, saveConfig } = useConfigList();
   const { startStream, stopStream, stream } = useStreamState();
+  const { configSchema, configDefaults } = useSchemas();
+
+  const { currentChat, assistantConfig, isLoading } = useThreadAndAssistant();
 
   const startTurn = useCallback(
-    async (message?: string, chat: ChatType | null = currentChat) => {
-      if (!chat) return;
-      const config = configs?.find(
-        (c) => c.assistant_id === chat.assistant_id
-      )?.config;
-      if (!config) return;
+    async (message: MessageWithFiles | null, thread_id: string) => {
+      const files = message?.files || [];
+      if (files.length > 0) {
+        const formData = files.reduce((formData, file) => {
+          formData.append("files", file);
+          return formData;
+        }, new FormData());
+        formData.append(
+          "config",
+          JSON.stringify({ configurable: { thread_id } }),
+        );
+        await fetch(`/ingest`, {
+          method: "POST",
+          body: formData,
+        });
+      }
       await startStream(
         message
           ? [
               {
-                content: message,
+                content: message.message,
                 additional_kwargs: {},
                 type: "human",
                 example: false,
+                id: `human-${Math.random()}`,
               },
             ]
           : null,
-        chat.assistant_id,
-        chat.thread_id
+        thread_id,
       );
     },
-    [currentChat, startStream, configs]
+    [startStream],
   );
 
   const startChat = useCallback(
-    async (message: string) => {
-      if (!currentConfig) return;
-      const chat = await createChat(message, currentConfig.assistant_id);
-      return startTurn(message, chat);
+    async (config: ConfigInterface, message: MessageWithFiles) => {
+      const chat = await createChat(message.message, config.assistant_id);
+      navigate(`/thread/${chat.thread_id}`);
+      return startTurn(message, chat.thread_id);
     },
-    [createChat, startTurn, currentConfig]
+    [createChat, navigate, startTurn],
   );
 
   const selectChat = useCallback(
@@ -56,67 +75,37 @@ function App() {
       if (currentChat) {
         stopStream?.(true);
       }
-      enterChat(id);
       if (!id) {
-        enterConfig(configs?.[0]?.assistant_id ?? null);
+        const firstAssistant = configs?.[0]?.assistant_id ?? null;
+        navigate(firstAssistant ? `/assistant/${firstAssistant}` : "/");
         window.scrollTo({ top: 0 });
+      } else {
+        navigate(`/thread/${id}`);
       }
       if (sidebarOpen) {
         setSidebarOpen(false);
       }
     },
-    [enterChat, stopStream, sidebarOpen, currentChat, enterConfig, configs]
+    [currentChat, sidebarOpen, stopStream, configs, navigate],
   );
 
   const selectConfig = useCallback(
     (id: string | null) => {
-      enterConfig(id);
-      enterChat(null);
+      navigate(id ? `/assistant/${id}` : "/");
     },
-    [enterConfig, enterChat]
-  );
-
-  const content = currentChat ? (
-    <Chat
-      chat={currentChat}
-      startStream={startTurn}
-      stopStream={stopStream}
-      stream={stream}
-    />
-  ) : currentConfig ? (
-    <NewChat
-      startChat={startChat}
-      configSchema={configSchema}
-      configDefaults={configDefaults}
-      configs={configs}
-      currentConfig={currentConfig}
-      saveConfig={saveConfig}
-      enterConfig={selectConfig}
-    />
-  ) : (
-    <Config
-      className="mb-6"
-      config={currentConfig}
-      configSchema={configSchema}
-      configDefaults={configDefaults}
-      saveConfig={saveConfig}
-    />
-  );
-
-  const currentChatConfig = configs?.find(
-    (c) => c.assistant_id === currentChat?.assistant_id
+    [navigate],
   );
 
   return (
     <Layout
       subtitle={
-        currentChatConfig ? (
+        assistantConfig ? (
           <span className="inline-flex gap-1 items-center">
-            {currentChatConfig.name}
+            {assistantConfig.name}
             <InformationCircleIcon
               className="h-5 w-5 cursor-pointer text-indigo-600"
               onClick={() => {
-                selectConfig(currentChatConfig.assistant_id);
+                selectConfig(assistantConfig.assistant_id);
               }}
             />
           </span>
@@ -126,20 +115,48 @@ function App() {
       setSidebarOpen={setSidebarOpen}
       sidebar={
         <ChatList
-          chats={useMemo(() => {
-            if (configs === null || chats === null) return null;
-            return chats.filter((c) =>
-              configs.some((config) => config.assistant_id === c.assistant_id)
-            );
-          }, [chats, configs])}
-          currentChat={currentChat}
+          chats={chats}
           enterChat={selectChat}
-          currentConfig={currentConfig}
+          deleteChat={deleteChat}
           enterConfig={selectConfig}
         />
       }
     >
-      {configSchema ? content : null}
+      {currentChat && assistantConfig && (
+        <Chat startStream={startTurn} stopStream={stopStream} stream={stream} />
+      )}
+      {!currentChat && assistantConfig && !props.edit && (
+        <NewChat
+          startChat={startChat}
+          configSchema={configSchema}
+          configDefaults={configDefaults}
+          configs={configs}
+          saveConfig={saveConfig}
+          enterConfig={selectConfig}
+        />
+      )}
+      {!currentChat && assistantConfig && props.edit && (
+        <Config
+          className="mb-6"
+          config={assistantConfig}
+          configSchema={configSchema}
+          configDefaults={configDefaults}
+          saveConfig={saveConfig}
+          enterConfig={selectConfig}
+          edit={props.edit}
+        />
+      )}
+      {!currentChat && !assistantConfig && !isLoading && (
+        <Config
+          className="mb-6"
+          config={null}
+          configSchema={configSchema}
+          configDefaults={configDefaults}
+          saveConfig={saveConfig}
+          enterConfig={selectConfig}
+        />
+      )}
+      {isLoading && <div>Loading...</div>}
     </Layout>
   );
 }
