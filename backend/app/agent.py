@@ -7,7 +7,7 @@ from langchain_core.runnables import (
     ConfigurableField,
     RunnableBinding,
 )
-from langgraph.checkpoint import CheckpointAt
+# from langgraph.checkpoint import CheckpointAt
 from langgraph.graph.message import Messages
 from langgraph.pregel import Pregel
 
@@ -74,7 +74,7 @@ class AgentType(str, Enum):
 
 DEFAULT_SYSTEM_MESSAGE = "You are a helpful assistant."
 
-CHECKPOINTER = PostgresCheckpoint(serde=pickle, at=CheckpointAt.END_OF_STEP)
+CHECKPOINTER = PostgresCheckpoint(serde=pickle,) ## at=CheckpointAt.END_OF_STEP)
 
 
 def get_agent_executor(
