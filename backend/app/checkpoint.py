@@ -7,7 +7,7 @@ from langchain_core.runnables import ConfigurableFieldSpec, RunnableConfig
 from langgraph.checkpoint import BaseCheckpointSaver
 from langgraph.checkpoint.base import (
     Checkpoint,
-    CheckpointAt,
+    # CheckpointAt,
     CheckpointThreadTs,
     CheckpointTuple,
     SerializerProtocol,
@@ -29,9 +29,9 @@ class PostgresCheckpoint(BaseCheckpointSaver):
         self,
         *,
         serde: Optional[SerializerProtocol] = None,
-        at: Optional[CheckpointAt] = None,
+        # at: Optional[CheckpointAt] = None,
     ) -> None:
-        super().__init__(serde=serde, at=at)
+        super().__init__(serde=serde, ) # at=at)
 
     @property
     def config_specs(self) -> list[ConfigurableFieldSpec]:
