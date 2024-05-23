@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Path
 from langchain.schema.messages import AnyMessage
-from pydantic import BaseModel, Field
+from pydantic.v1 import BaseModel, Field
 
 import app.storage as storage
 from app.auth.handlers import AuthedUser

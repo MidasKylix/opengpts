@@ -8,7 +8,7 @@ from langchain.pydantic_v1 import ValidationError
 from langchain_core.messages import AnyMessage
 from langchain_core.runnables import RunnableConfig
 from langsmith.utils import tracing_is_enabled
-from pydantic import BaseModel, Field
+from pydantic.v1 import BaseModel, Field
 from sse_starlette import EventSourceResponse
 
 from app.agent import agent
