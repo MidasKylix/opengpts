@@ -9,7 +9,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_community.chat_models import BedrockChat, ChatFireworks
 
 # from langchain_community.chat_models.ollama import ChatOllama
-from langchain_experimental.llms.ollama_functions import OllamaFunctions
+from langchain_experimental.llms.ollama_tools import OllamaTools
 from langchain_google_vertexai import ChatVertexAI
 from langchain_openai import AzureChatOpenAI, ChatOpenAI
 
@@ -100,4 +100,4 @@ def get_ollama_llm():
         ollama_base_url = "http://localhost:11434"
 
     # return ChatOllama(model=model_name, base_url=ollama_base_url)
-    return OllamaFunctions(model=model_name, base_url=ollama_base_url)
+    return OllamaTools(model=model_name, base_url=ollama_base_url)
